@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Dashboard</title>
+
+  <!-- Fonts and Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins&display=swap" rel="stylesheet"/>
+
+  <!-- Styles -->
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background-color: #F4EBD3;
+      margin: 0;
+      padding: 0;
+    }
+
+    header {
+      background-color: #555879;
+      color: white;
+      padding: 1rem;
+      text-align: center;
+      position: relative;
+    }
+
+    h2 {
+      text-align: center;
+      color: #0B1D51;
+      margin-top: 30px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 30px auto;
+      padding: 20px;
+      background-color: #DED3C4;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+
+    form input, form button {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+
+    form button {
+      background-color: #555879;
+      color: white;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    form button:hover {
+      background-color: #3d3f5f;
+    }
+
+    .student-card {
+      background-color: #98A1BC;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: white;
+    }
+
+    .student-card button {
+      padding: 6px 12px;
+      background-color: #03A6A1;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .student-card button:hover {
+      background-color: #02817e;
+    }
+
+    #logout {
+      position: absolute;
+      top: 15px;
+      right: 20px;
+      background: #FF4B2B;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    #logout:hover {
+      background-color: #ff6745;
+    }
+
+    /* New styles for appointment cards */
+    .appointment-card {
+      background-color: #98A1BC;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 15px;
+      color: white;
+    }
+
+    .appointment-info {
+      margin-bottom: 10px;
+    }
+
+    .appointment-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .appointment-actions button {
+      padding: 6px 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .approve-btn {
+      background-color: #03A6A1;
+      color: white;
+    }
+
+    .approve-btn:hover {
+      background-color: #02817e;
+    }
+
+    .reject-btn {
+      background-color: #FF4B2B;
+      color: white;
+    }
+
+    .reject-btn:hover {
+      background-color: #ff6745;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Admin Dashboard</h1>
+    <button id="logout">Logout</button>
+  </header>
+
+  <!-- Add Teacher Form -->
+  <div class="container">
+    <h2>Add New Teacher</h2>
+    <form id="addTeacherForm">
+      <input type="text" id="teacherName" placeholder="Name" required />
+      <input type="email" id="teacherEmail" placeholder="Email" required />
+      <input type="text" id="teacherSubject" placeholder="Subject" required />
+      <input type="text" id="teacherDepartment" placeholder="Department" required />
+      <input type="password" id="teacherPassword" placeholder="Default Password" required />
+      <button type="submit">Add Teacher</button>
+      <p id="teacherStatus" style="margin-top: 10px; color: green;"></p>
+    </form>
+  </div>
+
+  <!-- Pending Student Approvals -->
+  <h2>Pending Student Approvals</h2>
+  <div class="container">
+    <div id="studentList">Loading...</div>
+  </div>
+
+  <!-- Registered Teachers -->
+  <h2>Registered Teachers</h2>
+  <div class="container">
+    <div id="teacherList">Loading...</div>
+  </div>
+
+  <!-- Pending Appointments -->
+  <h2>Pending Appointments</h2>
+  <div class="container">
+    <div id="appointmentList">Loading appointments...</div>
+  </div>
+
+</body>
+</html>
+
+<script type="module">
+  import { auth, db } from '../js/firebase.js';
+  import {
+    onAuthStateChanged,
+    signOut
+  } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-auth.js";
+  import {
+    doc, getDoc, collection, query, where, getDocs, updateDoc
+  } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js";
+  import { initAdminPage } from '../js/admin.js';
+
+  // Protect page
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      alert("Please login as admin.");
+      window.location.href = "../login.html";
+      return;
+    }
+
+    const userRef = doc(db, "users", user.uid);
+    const userSnap = await getDoc(userRef);
+    const current = userSnap.data();
+
+    if (!current || current.role !== "admin") {
+      alert("Access denied. Admins only.");
+      window.location.href = "../login.html";
+      return;
+    }
+
+    initAdminPage();
+    loadPendingAppointments();
+  });
+
+  document.getElementById("logout").addEventListener("click", () => {
+    signOut(auth).then(() => {
+      window.location.href = "../login.html";
+    });
+  });
+
+  // Function to load pending appointments
+  async function loadPendingAppointments() {
+    const appointmentList = document.getElementById('appointmentList');
+    appointmentList.innerHTML = 'Loading appointments...';
+
+    try {
+      const q = query(collection(db, "appointments"), where("status", "==", "pending"));
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        appointmentList.innerHTML = '<p>No pending appointments found.</p>';
+        return;
+      }
+
+      appointmentList.innerHTML = '';
+      querySnapshot.forEach((doc) => {
+        const appointment = doc.data();
+        createAppointmentCard(doc.id, appointment);
+      });
+    } catch (error) {
+      console.error("Error loading appointments: ", error);
+      appointmentList.innerHTML = '<p>Error loading appointments.</p>';
+    }
+  }
+
+  // Function to create appointment card
+  function createAppointmentCard(appointmentId, appointment) {
+    const appointmentList = document.getElementById('appointmentList');
+    const card = document.createElement('div');
+    card.className = 'appointment-card';
+
+    const formattedDate = new Date(appointment.dateTime).toLocaleString();
+    
+    card.innerHTML = `
+      <div class="appointment-info">
+        <p><strong>Student:</strong> ${appointment.studentName}</p>
+        <p><strong>Teacher:</strong> ${appointment.teacherName}</p>
+        <p><strong>Date/Time:</strong> ${formattedDate}</p>
+        <p><strong>Reason:</strong> ${appointment.reason}</p>
+      </div>
+      <div class="appointment-actions">
+        <button class="approve-btn" data-id="${appointmentId}">Approve</button>
+        <button class="reject-btn" data-id="${appointmentId}">Reject</button>
+      </div>
+    `;
+
+    appointmentList.appendChild(card);
+
+    // Add event listeners to buttons
+    card.querySelector('.approve-btn').addEventListener('click', () => updateAppointmentStatus(appointmentId, 'approved'));
+    card.querySelector('.reject-btn').addEventListener('click', () => updateAppointmentStatus(appointmentId, 'rejected'));
+  }
+
+  // Function to update appointment status
+  async function updateAppointmentStatus(appointmentId, status) {
+    try {
+      const appointmentRef = doc(db, "appointments", appointmentId);
+      await updateDoc(appointmentRef, {
+        status: status
+      });
+      alert(`Appointment ${status} successfully!`);
+      loadPendingAppointments(); // Refresh the list
+    } catch (error) {
+      console.error("Error updating appointment: ", error);
+      alert("Error updating appointment.");
+    }
+  }
+</script>
